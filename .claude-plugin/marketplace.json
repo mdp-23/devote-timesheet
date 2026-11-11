@@ -1,7 +1,9 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "devote-timesheet",
-  "owner": { "name": "Devote Digital" },
+  "owner": {
+    "name": "Devote Digital"
+  },
   "plugins": [
     {
       "name": "devote-timesheet",
@@ -9,5 +11,8 @@
       "description": "Builds each person's day from ActivityWatch, their Claude Code sessions and meetings, matches it to their ClickUp tasks and logs the time they approve.",
       "category": "productivity"
     }
-  ]
+  ],
+  "metadata": {
+    "description": "Devote Digital's timesheet plugin for Claude Code."
+  }
 }
