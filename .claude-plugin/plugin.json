@@ -1,6 +1,6 @@
 {
   "name": "devote-timesheet",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Builds each person's day from ActivityWatch, their Claude Code sessions and meetings, matches it to their ClickUp tasks and logs the time they approve.",
   "author": {
     "name": "Devote Digital",

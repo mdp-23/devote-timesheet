@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
-import { buildDay, isHumanPrompt, promptText, clickupTaskIds } from './lib.mjs';
+import { buildDay, isHumanPrompt, promptText, clickupTaskIds, clipOverlaps } from './lib.mjs';
 
 const AW = process.env.AW_URL || 'http://127.0.0.1:5600'; // localhost can resolve to IPv6, which aw-server does not listen on
 const CLICKUP = 'https://api.clickup.com/api/v2';
@@ -174,22 +174,91 @@ async function doctor() {
   out(report);
 }
 
+// This machine's raw day: what `day` builds from, and what `export` hands to your other computers.
+async function gatherLocal(date) {
+  const { start, end } = dayBounds(date);
+  const g = { host: os.hostname().replace(/\.local$/, ''), date, exportedAt: Date.now(), win: [], web: [], prompts: [], sessions: [] };
+  try {
+    const aw = await awDay(start, end);
+    g.win = aw.win; g.web = aw.web;
+    g.activitywatch = aw.win.length
+      ? `ok, ${aw.win.length} window events, ${aw.web.length} browser tab events${aw.buckets.web.length ? '' : ' (no browser extension, so browser time uses page titles)'}`
+      : 'no data: ActivityWatch has nothing for this day (not running, or idle all day), so time outside Claude sessions and meetings is missing, not zero';
+  } catch (e) {
+    g.activitywatch = `could not check: ${e.message}`;
+  }
+  const c = await claudeDay(start, end);
+  g.prompts = c.prompts;
+  g.sessions = [...c.sessions.values()];
+  g.claude = `ok, ${c.prompts.length} prompts across ${c.sessions.size} sessions`;
+  return g;
+}
+
+// Optional shared folder (iCloud Drive) so a person with two computers gets one timesheet.
+const SHARE_CONFIG = path.join(os.homedir(), '.config', 'devote-timesheet', 'share.json');
+function shareDir() { try { return JSON.parse(fs.readFileSync(SHARE_CONFIG, 'utf8')).dir; } catch { return null; } }
+function writeExport(g) {
+  const dir = shareDir();
+  if (!dir) return null;
+  const f = path.join(dir, g.host, `${g.date}.json`);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, JSON.stringify(g));
+  return f;
+}
+function readOtherExports(date, ownHost) {
+  const dir = shareDir();
+  if (!dir || !fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter(h => h !== ownHost).flatMap(h => {
+    const f = path.join(dir, h, `${date}.json`);
+    if (!fs.existsSync(f)) return [{ host: h, missing: true }];
+    try { return [JSON.parse(fs.readFileSync(f, 'utf8'))]; } catch (e) { return [{ host: h, error: e.message }]; }
+  });
+}
+
+async function shareOn() {
+  const icloud = path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
+  const dir = args[1] || (fs.existsSync(icloud) ? path.join(icloud, 'devote-timesheet') : null);
+  if (!dir) fail('No iCloud Drive on this computer. Give a folder that syncs between your computers: share-on <folder>');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(path.dirname(SHARE_CONFIG), { recursive: true });
+  fs.writeFileSync(SHARE_CONFIG, JSON.stringify({ dir }, null, 2));
+  out({ ok: true, shareDir: dir });
+}
+
+async function exportDay() {
+  if (!shareDir()) fail('Sharing is off on this computer. Run: timesheet.mjs share-on');
+  const g = await gatherLocal(opt('date') || localDate());
+  out({ ok: true, wrote: writeExport(g), activitywatch: g.activitywatch, claude: g.claude });
+}
+
+// Run from the plugin's Stop hook: when sharing is on, export this computer's day in the
+// background at most every 15 minutes, so the other computer always has a recent copy.
+async function autoExport() {
+  if (!shareDir()) return;
+  const stamp = path.join(path.dirname(SHARE_CONFIG), 'last-export');
+  try { if (Date.now() - fs.statSync(stamp).mtimeMs < 15 * 60 * 1000) return; } catch {}
+  fs.writeFileSync(stamp, String(Date.now()));
+  const { spawn } = await import('node:child_process');
+  spawn(process.execPath, [new URL(import.meta.url).pathname, 'export'], { detached: true, stdio: 'ignore' }).unref();
+}
+
 async function day() {
   const date = opt('date') || localDate();
   const { start, end } = dayBounds(date);
-  const sources = {};
-  let win = [], web = [];
-  try {
-    const aw = await awDay(start, end);
-    win = aw.win; web = aw.web;
-    sources.activitywatch = win.length
-      ? `ok, ${win.length} window events, ${web.length} browser tab events${aw.buckets.web.length ? '' : ' (no browser extension, so browser time uses page titles)'}`
-      : 'no data: ActivityWatch has nothing for this day (not running, or idle all day), so time outside Claude sessions and meetings is missing, not zero';
-  } catch (e) {
-    sources.activitywatch = `could not check: ${e.message}`;
+  const own = await gatherLocal(date);
+  const sources = { [own.host]: { activitywatch: own.activitywatch, claude: own.claude } };
+  if (shareDir()) writeExport(own);
+  const tag = (list, host) => list.map(e => ({ ...e, host }));
+  let win = tag(own.win, own.host), web = own.web, prompts = tag(own.prompts, own.host);
+  const sessions = new Map(own.sessions.map(s => [s.id, s]));
+  for (const o of readOtherExports(date, own.host)) {
+    if (o.missing) { sources[o.host] = 'could not check: no export from this computer for the day yet (run export there, or open its Claude app so the scheduled export runs)'; continue; }
+    if (o.error) { sources[o.host] = `could not check: ${o.error}`; continue; }
+    sources[o.host] = { activitywatch: o.activitywatch, claude: o.claude, exportedAt: hm(o.exportedAt), note: 'time on this computer after the export time is not included' };
+    win = win.concat(tag(o.win, o.host)); web = web.concat(o.web); prompts = prompts.concat(tag(o.prompts, o.host));
+    for (const s of o.sessions) if (!sessions.has(s.id)) sessions.set(s.id, { ...s, computer: o.host });
   }
-  const { prompts, sessions } = await claudeDay(start, end);
-  sources.claude = `ok, ${prompts.length} prompts across ${sessions.size} sessions`;
+  win = clipOverlaps(win);
 
   let meetings = [];
   const mf = opt('meetings');
@@ -206,7 +275,7 @@ async function day() {
     const base = { ...it, first: hm(it.first), last: hm(it.last) };
     if (it.kind === 'claude' && it.key !== 'claude:unmatched') {
       const s = sessions.get(it.key.slice(7));
-      if (s) Object.assign(base, { title: s.title, folder: s.folder, branch: s.branch, clickupTaskIds: s.clickupTaskIds, prompts: s.prompts.slice(0, 6), promptCount: s.prompts.length });
+      if (s) Object.assign(base, { title: s.title, folder: s.folder, branch: s.branch, clickupTaskIds: s.clickupTaskIds, computer: s.computer, prompts: s.prompts.slice(0, 6), promptCount: s.prompts.length });
     }
     return base;
   });
@@ -302,9 +371,9 @@ async function post() {
   out({ ok: results.every(r => r.ok !== false), loggedAs: cfg && cfg.username, results });
 }
 
-const commands = { doctor, day, 'setup-token': setupToken, whoami, tasks, logged, post };
+const commands = { doctor, day, 'setup-token': setupToken, whoami, tasks, logged, post, 'share-on': shareOn, export: exportDay, 'auto-export': autoExport };
 if (!commands[cmd]) {
-  process.stdout.write('Commands: doctor, day [--date YYYY-MM-DD] [--meetings file], setup-token, whoami, tasks, logged [--date], post --file entries.json [--dry-run]\n');
+  process.stdout.write('Commands: doctor, day [--date YYYY-MM-DD] [--meetings file], setup-token, whoami, tasks, logged [--from] [--date], post --file entries.json [--dry-run], share-on [folder], export [--date]\n');
   process.exit(cmd ? 1 : 0);
 }
 commands[cmd]().catch(e => fail(e.message));

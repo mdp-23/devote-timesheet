@@ -33,6 +33,19 @@ description. Personal browsing is never listed or logged.
    gives you the first time you use `/devote-timesheet:timesheet`, and paste the token when
    it asks. It is saved on your computer only.
 
+## Two Computers
+
+If you work on two Macs, set both up as above, then on each one run this once in the Terminal
+app:
+
+```bash
+node ~/.claude/plugins/cache/devote-timesheet/devote-timesheet/*/scripts/timesheet.mjs share-on
+```
+
+Each Mac then saves its day to a `devote-timesheet` folder in your iCloud Drive, every 15
+minutes while you use Claude, and the timesheet on either Mac includes both. If both Macs are
+in use at the same minute, that minute is only counted once.
+
 ## Installing the Plugin
 
 In the Code tab:

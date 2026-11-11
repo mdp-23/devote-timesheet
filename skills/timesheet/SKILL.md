@@ -75,6 +75,11 @@ ActivityWatch only (a Meet or Zoom window in front), so in-person meetings need 
 node "${CLAUDE_PLUGIN_ROOT}/scripts/timesheet.mjs" day --date YYYY-MM-DD [--meetings <file>]
 ```
 
+`sources` has one entry per computer. If they use two computers with sharing on
+(`share-on`), the other computer's day is merged in from its last export, and its entry says
+when that was. Say in one line if the other computer's export is older than an hour, or
+missing ("could not check"), since its time after that is not in the table.
+
 It returns `items`, each a block of their active time (idle time is already removed):
 
 - `claude:<id>`: time in a Claude Code session, with its title, folder, prompts and any

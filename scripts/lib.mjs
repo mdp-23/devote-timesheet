@@ -48,6 +48,19 @@ function subtract(a, list) {
 
 const byStart = (x, y) => x.start - y.start;
 
+// Window events from two computers can overlap (both awake at once). A person is only at one
+// keyboard, so the later-starting event is trimmed to where the earlier one ends.
+export function clipOverlaps(events) {
+  const sorted = [...events].sort(byStart);
+  const out = [];
+  let reach = -Infinity;
+  for (const e of sorted) {
+    const start = Math.max(e.start, reach);
+    if (e.end > start) { out.push({ ...e, start }); reach = e.end; }
+  }
+  return out;
+}
+
 export function cleanUrl(url) {
   try {
     const u = new URL(url);
@@ -97,12 +110,14 @@ export function splitClaudeTime(seg, prompts) {
 export function buildDay({ win = [], web = [], prompts = [], meetings = [] }) {
   win = [...win].sort(byStart);
   web = web.filter(w => !w.incognito).sort(byStart);
-  prompts = [...prompts].sort((a, b) => a.t - b.t);
+  const allPrompts = [...prompts].sort((a, b) => a.t - b.t);
   meetings = [...meetings].sort(byStart);
 
   const segments = []; // {start, end, key, kind, detail, url}
 
   for (const w of win) {
+    // A prompt only claims time on the computer it was sent from.
+    const prompts = w.host ? allPrompts.filter(p => !p.host || p.host === w.host) : allPrompts;
     // Meetings take precedence over whatever window was in front.
     for (const free of subtract(w, meetings)) {
       const seg = { ...w, start: free.start, end: free.end };
@@ -128,9 +143,12 @@ export function buildDay({ win = [], web = [], prompts = [], meetings = [] }) {
       // A prompt sent from another app (a terminal running Claude Code): time before it counts to that session.
       const inside = prompts.filter(p => p.t > seg.start && p.t <= seg.end);
       if (inside.length) {
-        const first = inside[0];
-        segments.push({ start: seg.start, end: first.t, kind: 'claude', key: `claude:${first.session}`, detail: '' });
-        if (first.t < seg.end) segments.push({ start: first.t, end: seg.end, kind: 'app', key: `app:${seg.app}`, detail: seg.title || '' });
+        let cursor = seg.start;
+        for (const p of inside) {
+          segments.push({ start: cursor, end: p.t, kind: 'claude', key: `claude:${p.session}`, detail: '' });
+          cursor = p.t;
+        }
+        if (cursor < seg.end) segments.push({ start: cursor, end: seg.end, kind: 'app', key: `app:${seg.app}`, detail: seg.title || '' });
         continue;
       }
       segments.push({ start: seg.start, end: seg.end, kind: 'app', key: `app:${seg.app}`, detail: seg.title || '' });

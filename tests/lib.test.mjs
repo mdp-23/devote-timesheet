@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDay, isHumanPrompt, promptText, webKey, splitClaudeTime, clickupTaskIds } from '../scripts/lib.mjs';
+import { buildDay, isHumanPrompt, promptText, webKey, splitClaudeTime, clickupTaskIds, clipOverlaps } from '../scripts/lib.mjs';
 
 const T = (h, m = 0) => Date.UTC(2026, 10, 11, h, m);
 const mins = (day, key) => (day.items.find(i => i.key === key) || { minutes: 0 }).minutes;
@@ -64,6 +64,26 @@ test('only prompts the person typed count', () => {
 test('prompt text drops the context blocks the app adds', () => {
   const d = { message: { content: '<artifact-view-context a="1">{"x":1}</artifact-view-context> Make the logo bigger' } };
   assert.equal(promptText(d), 'Make the logo bigger');
+});
+
+test('two computers active at once are not counted twice', () => {
+  const merged = clipOverlaps([
+    { start: T(9), end: T(10), app: 'Figma', title: 'a' },
+    { start: T(9, 30), end: T(10, 30), app: 'Zen', title: 'b' },
+    { start: T(9, 40), end: T(9, 50), app: 'Mail', title: 'c' },
+  ]);
+  const total = merged.reduce((n, e) => n + (e.end - e.start), 0) / 60000;
+  assert.equal(total, 90);
+});
+
+test('a prompt on one computer does not claim time on the other', () => {
+  const day = buildDay({
+    win: [{ start: T(15), end: T(15, 30), app: 'Figma', title: 'x', host: 'air' }],
+    prompts: [{ t: T(15, 5), session: 'MINI', host: 'mini' }, { t: T(15, 20), session: 'AIR', host: 'air' }],
+  });
+  assert.equal(mins(day, 'claude:MINI'), 0);
+  assert.equal(mins(day, 'claude:AIR'), 20);
+  assert.equal(mins(day, 'app:Figma'), 10);
 });
 
 test('ClickUp task links in a prompt are picked up', () => {

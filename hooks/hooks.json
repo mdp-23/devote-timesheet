@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/timesheet.mjs\" auto-export >/dev/null 2>&1 || true", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}
