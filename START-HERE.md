@@ -27,7 +27,7 @@ description. Personal browsing is never listed or logged.
    that.
 2. When macOS asks, allow ActivityWatch under System Settings, Privacy & Security,
    Accessibility. Without it, it cannot see window titles.
-3. In Chrome, install the "ActivityWatch Web Watcher" extension from the Chrome Web Store.
+3. In Chrome, install the [ActivityWatch Web Watcher](https://chromewebstore.google.com/detail/activitywatch-web-watcher/nglaklhklhcoonedhgnpgddginnjdadi) extension.
 4. Link your own ClickUp account, so time is logged as you. In ClickUp, click your avatar,
    Settings, Apps, and copy your API token. Then in the Terminal app run the command Claude
    gives you the first time you use `/devote-timesheet:timesheet`, and paste the token when

@@ -1,10 +1,15 @@
 {
   "name": "devote-timesheet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Builds each person's day from ActivityWatch, their Claude Code sessions and meetings, matches it to their ClickUp tasks and logs the time they approve.",
   "author": {
     "name": "Devote Digital",
     "url": "https://devotedigital.com.au"
   },
-  "keywords": ["clickup", "time tracking", "timesheet", "devote"]
+  "keywords": [
+    "clickup",
+    "time tracking",
+    "timesheet",
+    "devote"
+  ]
 }

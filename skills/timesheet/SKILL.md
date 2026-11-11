@@ -25,11 +25,14 @@ Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/timesheet.mjs" doctor`.
   ```
 
   Without Homebrew, it is a download from activitywatch.net.
+
+  On the first run of the day, also tell them it only knows about time from when it was first
+  opened, so a day it was not running is missing, not empty.
 - `windowTitles` says none have a title: they need to allow ActivityWatch in System Settings,
   Privacy & Security, Accessibility. Say that in one line; it still works without titles, less
   accurately.
 - `browserTracker` missing: say once that installing the "ActivityWatch Web Watcher" extension
-  in Chrome makes browser time far more accurate. Carry on without it.
+  in Chrome (https://chromewebstore.google.com/detail/activitywatch-web-watcher/nglaklhklhcoonedhgnpgddginnjdadi) makes browser time far more accurate. Carry on without it.
 
 If ActivityWatch has no data for the day (it was not running), say so plainly: the timesheet
 then only has Claude sessions and meetings, and time spent elsewhere is missing, not zero.
