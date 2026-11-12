@@ -12,62 +12,69 @@ reads stays on this computer. Nothing goes to ClickUp until the person approves 
 Keep it quick: the person wants their time logged, not a report. One line while you work
 ("Building your day from ActivityWatch and your Claude sessions."), then the table.
 
-## 1. Check the trackers
+## 1. Check the setup
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/timesheet.mjs" doctor`.
+Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/timesheet.mjs" doctor`, then `whoami`.
 
-- `activitywatch` not reachable: on a Mac run `open -a ActivityWatch`, wait 10 seconds, run
-  doctor again. If ActivityWatch is not installed, stop and give them this, to run once in the
-  Terminal app, then open ActivityWatch from Applications:
+If `node` is not found, stop: they need Node from nodejs.org (the LTS installer), then a
+restart of the Claude app.
 
-  ```bash
-  brew install --cask activitywatch
-  ```
+Anything missing is set up now, in this order. Do each part yourself and leave them only the
+clicks macOS or ClickUp insists on. On the first run this is the whole job: once it is set
+up, say tracking starts now and the first timesheet is at the end of tomorrow, and stop.
 
-  Without Homebrew, it is a download from activitywatch.net.
+1. **ActivityWatch** (`activitywatch` not reachable). If it is installed, run
+   `open -a ActivityWatch`. If not, run `brew install --cask activitywatch` when Homebrew is
+   there (`which brew`), then `open -a ActivityWatch`. Without Homebrew, give them
+   https://activitywatch.net/downloads/ to download and drag into Applications, then open it.
+   Run doctor again after 10 seconds.
+2. **Window titles** (`windowTitles` says none have a title): macOS asks to allow
+   ActivityWatch under System Settings, Privacy & Security, Accessibility. That click is theirs.
+3. **Browser** (`browserTracker` missing): open
+   https://chromewebstore.google.com/detail/activitywatch-web-watcher/nglaklhklhcoonedhgnpgddginnjdadi
+   in their Chrome with Claude in Chrome if it is connected; they click "Add to Chrome". Without
+   it browser time comes from window titles, which still works, less accurately.
+4. **Their own ClickUp token** (`token: false`). Required: the team shares one Claude
+   account, so the ClickUp connector logs time as whoever connected it, not as this person.
+   Never log or read their time through the connector. The token is theirs and lives only on
+   this Mac.
+   - In their Chrome (Claude in Chrome), open https://app.clickup.com/settings/apps, click
+     **Create token**, describe it as "Devote Timesheet", leave expiry on Never and click
+     Create token. ClickUp then asks for their ClickUp password: that is theirs to type. If
+     they sign in with Google and have no ClickUp password, they use "Forgot Password?" there
+     to set one.
+   - Do not screenshot or read the page once the token is showing.
+   - Start the paste step in a Terminal panel tab with `run_in_terminal` when that tool is
+     there, otherwise give the command to run in the Terminal app, with the real path:
 
-  On the first run of the day, also tell them it only knows about time from when it was first
-  opened, so a day it was not running is missing, not empty.
-- `windowTitles` says none have a title: they need to allow ActivityWatch in System Settings,
-  Privacy & Security, Accessibility. Say that in one line; it still works without titles, less
-  accurately.
-- `browserTracker` missing: say once that installing the "ActivityWatch Web Watcher" extension
-  in Chrome (https://chromewebstore.google.com/detail/activitywatch-web-watcher/nglaklhklhcoonedhgnpgddginnjdadi) makes browser time far more accurate. Carry on without it.
+     ```bash
+     node "<real path of timesheet.mjs>" setup-token
+     ```
+
+     They copy the token from ClickUp and paste it there. Never ask for it in the chat.
+   - Run `whoami` again. It must show their name. If it shows someone else, stop: the
+     token belongs to another person.
+5. **A daily reminder**, once: if the scheduled-tasks tool is available and has no
+   timesheet task, offer one at 4:45pm on weekdays that runs `/devote-timesheet:timesheet`.
 
 If ActivityWatch has no data for the day (it was not running), say so plainly: the timesheet
 then only has Claude sessions and meetings, and time spent elsewhere is missing, not zero.
 
-## 2. Work out who is logging
+## 2. Who Is Logging
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/timesheet.mjs" whoami`.
-
-- `token: true`: entries are logged with their own ClickUp token, as `username`. Use the
-  script for tasks, logged and post below.
-- `token: false`: the ClickUp connector may be signed in as someone else (the team shares a
-  Claude account). Call `clickup_get_user`. If that is clearly not the person you are working
-  with, or you cannot tell, ask them once: "This will log time as <name>. Is that you?" If not,
-  give them the one-time setup, to run in the Terminal app (it asks for their ClickUp token,
-  from ClickUp, avatar, Settings, Apps, API Token, and never shows it to Claude):
-
-  ```bash
-  node "<the real path of timesheet.mjs>" setup-token
-  ```
-
-  Print the command with the real path filled in. Then stop until they say it is done.
-
-Never ask them to paste the token into the chat.
+Every ClickUp read and write below goes through the script with their token, as `username`
+from `whoami`. Use the person's first name from it when talking to them.
 
 ## 3. Get their meetings
 
-Work out the date (default today, in their timezone). Read their calendar for that day with
-the Google Calendar connector, only if the connected calendar is theirs (its primary
-calendar id is their email). Keep events they accepted or organised that have at least one
-other attendee or a video link. Skip all-day events, declined events, "Focus time" and
-"Busy" blocks. Write them to a scratch file as
+Work out the date (default today, in their timezone). The Calendar connector is also shared,
+so read it only if its primary calendar id is the `email` from `whoami`. Keep events they
+accepted or organised that have at least one other attendee or a video link. Skip all-day
+events, declined events, "Focus time" and "Busy" blocks. Write them to a scratch file as
 `[{"start": "<ISO with offset>", "end": "<ISO with offset>", "title": "..."}]`.
 
-If the calendar connector is not theirs, skip this step and say meetings come from
-ActivityWatch only (a Meet or Zoom window in front), so in-person meetings need adding by hand.
+If the calendar is not theirs, skip this step and say meetings come from ActivityWatch only
+(a Meet or Zoom window in front), so in-person meetings need adding by hand.
 
 ## 4. Build the day
 
@@ -93,21 +100,20 @@ It returns `items`, each a block of their active time (idle time is already remo
   claude.ai, which this cannot see into. Ask what it was for if it is over 10 minutes.
 
 Also get what they already logged that day, so nothing is counted twice:
-`timesheet.mjs logged --date YYYY-MM-DD` (token) or `clickup_get_time_entries` for the day
-(connector, only once you know it is them).
+`timesheet.mjs logged --date YYYY-MM-DD`.
 
 ## 5. Match to ClickUp tasks
 
 Get the tasks to match against:
 
-- Their open tasks: `timesheet.mjs tasks` (token) or `clickup_filter_tasks` with
-  `assignees: ["me"]` (connector, all pages).
+- Their open tasks: `timesheet.mjs tasks`.
 - The tasks they logged time on in the last 14 days: `timesheet.mjs logged --from <date 14
-  days back> --date <date>` (token) or `clickup_get_time_entries` for that range (connector).
+  days back> --date <date>`.
   People often log to recurring tasks they are not assigned to ("Emails", an ad hoc task for
   a client), and these are the best guide to where they usually put time.
 - If a client's work still has no task, search that client's open tasks with
-  `clickup_search` and offer the best one as a suggestion, marked as such in the table.
+  `clickup_search` (a read of the workspace, so the connector is fine here) and offer the
+  best one as a suggestion, marked as such in the table.
 
 Match each item to one task, using:
 
@@ -154,10 +160,9 @@ they changed something big.
 
 Only after they say yes.
 
-- Token: write `[{"taskId", "start": "YYYY-MM-DD HH:MM", "minutes", "description"}]` to a
-  scratch file and run `timesheet.mjs post --file <file>`.
-- Connector: `clickup_add_time_entry` per row, with `task_id`, `start`, `duration` like
-  "1h 15m", and the "What" line as `description`.
+Write `[{"taskId", "start": "YYYY-MM-DD HH:MM", "minutes", "description"}]` to a scratch
+file and run `timesheet.mjs post --file <file>`. Never use `clickup_add_time_entry`: on the
+shared account it logs the time as someone else.
 
 Report in one line: how many entries and how much time were logged, as whom. If any failed,
 name them and why.

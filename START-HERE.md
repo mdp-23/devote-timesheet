@@ -17,21 +17,29 @@ description. Personal browsing is never listed or logged.
 
 ## Setting It Up (Once per Computer)
 
-1. Install ActivityWatch. In the Terminal app:
+You need Node on your Mac (the LTS installer from nodejs.org). Then in the Code tab of the
+Claude desktop app, run these one at a time:
 
-   ```bash
-   brew install --cask activitywatch
-   ```
+```
+/plugin marketplace add mdp-23/devote-timesheet
+/plugin install devote-timesheet@devote-timesheet
+```
 
-   Or download it from activitywatch.net. Open it from Applications. It starts itself after
-   that.
-2. When macOS asks, allow ActivityWatch under System Settings, Privacy & Security,
-   Accessibility. Without it, it cannot see window titles.
-3. In Chrome, install the [ActivityWatch Web Watcher](https://chromewebstore.google.com/detail/activitywatch-web-watcher/nglaklhklhcoonedhgnpgddginnjdadi) extension.
-4. Link your own ClickUp account, so time is logged as you. In ClickUp, click your avatar,
-   Settings, Apps, and copy your API token. Then in the Terminal app run the command Claude
-   gives you the first time you use `/devote-timesheet:timesheet`, and paste the token when
-   it asks. It is saved on your computer only.
+Quit Claude (Cmd+Q), reopen it, and type `/devote-timesheet:timesheet`. The first time, Claude
+sets everything up with you: it installs ActivityWatch, opens the Chrome extension and makes
+your ClickUp token in your own Chrome. Your parts are:
+
+- Allowing ActivityWatch when macOS asks (System Settings, Privacy & Security, Accessibility).
+- Clicking "Add to Chrome" on the extension.
+- Typing your ClickUp password when ClickUp asks, then copying the new token into the Terminal
+  tab Claude opens. Signed in with Google and have no ClickUp password? Use "Forgot Password?"
+  on that screen to set one.
+
+### Why Your Own Token
+
+The team shares one Claude account, so the ClickUp connector in Claude logs time as whoever
+connected it. Your token is tied to your ClickUp account and saved only on your Mac, so your
+time is always logged as you. Claude never sees it.
 
 ## Two Computers
 
@@ -45,17 +53,6 @@ node ~/.claude/plugins/cache/devote-timesheet/devote-timesheet/*/scripts/timeshe
 Each Mac then saves its day to a `devote-timesheet` folder in your iCloud Drive, every 15
 minutes while you use Claude, and the timesheet on either Mac includes both. If both Macs are
 in use at the same minute, that minute is only counted once.
-
-## Installing the Plugin
-
-In the Code tab:
-
-```
-/plugin marketplace add mdp-23/devote-timesheet
-/plugin install devote-timesheet@devote-timesheet
-```
-
-Each computer also needs Node (the LTS version from nodejs.org).
 
 ## How the Time Is Worked Out
 
